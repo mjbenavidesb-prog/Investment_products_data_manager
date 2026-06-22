@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from io import BytesIO
 from backend.database import get_all_products
+from backend.excel_report import generate_excel_report
 import backend.config as cfg
 
 # ── Theme constants ────────────────────────────────────────────────────────────
@@ -43,12 +44,6 @@ def fmt_usd(val):
     return f"${val:,.0f}"
 
 
-def to_excel(dfs: dict) -> bytes:
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for sheet_name, df in dfs.items():
-            df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
-    return output.getvalue()
 
 
 # ── Chart builders ─────────────────────────────────────────────────────────────
@@ -300,7 +295,8 @@ def _view_full(filtered):
 # ── Main render ────────────────────────────────────────────────────────────────
 
 def render():
-    primary = cfg.get("primary_color") or "#2563EB"
+    primary   = cfg.get("primary_color")   or "#2563EB"
+    secondary = cfg.get("secondary_color") or "#DC2626"
 
     st.subheader("Reports")
 
@@ -314,8 +310,17 @@ def render():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # ── Row 1: filter controls ────────────────────────────────────────────────
+    # ── Status filter (always visible at top) ─────────────────────────────────
     st.markdown("#### Filtros")
+    all_statuses = sorted(df["status"].dropna().unique().tolist())
+    status_filter = st.multiselect(
+        "Status",
+        options=all_statuses,
+        default=[s for s in ["VIGENTE", "POR EJECUTAR"] if s in all_statuses],
+    )
+    if status_filter:
+        df = df[df["status"].isin(status_filter)].copy()
+
     c1, c2 = st.columns([2, 3])
 
     with c1:
@@ -414,16 +419,27 @@ def render():
 
     # ── Download ──────────────────────────────────────────────────────────────
     st.markdown("---")
-    if not report_df.empty:
-        excel_data = to_excel({view[:31]: report_df, "Portfolio": filtered[[
-            c for c in ["nombre_producto", "status", "monto_total",
-                        "fecha_vencimiento", "asset_class", "vehiculo"]
-            if c in filtered.columns
-        ]]})
-        st.download_button(
-            label="Descargar Excel",
-            data=excel_data,
-            file_name=f"reporte_{view.lower().replace(' ', '_')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-        )
+    filter_label = (
+        f"{filter_by}: {', '.join(str(v) for v in selected_values)}"
+        if selected_values and filter_by != "Todos"
+        else ""
+    )
+    with st.spinner("Preparando Excel..."):
+        try:
+            excel_data = generate_excel_report(
+                df=filtered,
+                view=view,
+                primary_hex=primary,
+                secondary_hex=secondary,
+                filter_label=filter_label,
+            )
+            st.download_button(
+                label="Descargar Excel",
+                data=excel_data,
+                file_name=f"reporte_{view.lower().replace(' ', '_')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"Error generando Excel: {e}")
+            st.exception(e)
