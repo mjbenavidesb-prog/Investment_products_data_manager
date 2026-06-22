@@ -156,14 +156,20 @@ def init_db():
     conn.close()
 
 
-def _parse_amount(val):
+def _parse_amount(val, is_pct=False):
     if pd.isna(val) or val == "" or val == " ":
-        return 0.0
+        return None
     try:
-        clean = str(val).replace(",", "").replace(" ", "").replace("(", "-").replace(")", "")
-        return float(clean)
+        s = str(val).strip()
+        has_pct = s.endswith("%")
+        clean = s.replace("%", "").replace(",", "").replace(" ", "").replace("(", "-").replace(")", "")
+        f = float(clean)
+        # Percentage columns: store as decimal (10.74% → 0.1074)
+        if has_pct or is_pct:
+            f = f / 100.0
+        return f
     except Exception:
-        return 0.0
+        return None
 
 
 def _parse_pct(val):
@@ -174,6 +180,15 @@ def _parse_pct(val):
         return float(clean) / 100 if abs(float(clean)) > 1 else float(clean)
     except Exception:
         return None
+
+
+def reseed_from_csv():
+    """Force reseed: clears all products and reloads from CSV."""
+    conn = get_connection()
+    conn.execute("DELETE FROM products")
+    conn.commit()
+    conn.close()
+    return seed_from_csv()
 
 
 def seed_from_csv():
@@ -321,9 +336,9 @@ def seed_from_csv():
         for csv_col, db_col in col_map.items():
             val = row.get(csv_col, None)
             if csv_col in amount_cols:
-                record[db_col] = _parse_amount(val)
+                record[db_col] = _parse_amount(val, is_pct=False)
             elif csv_col in pct_cols:
-                record[db_col] = _parse_amount(val)
+                record[db_col] = _parse_amount(val, is_pct=True)
             else:
                 record[db_col] = str(val).strip() if not pd.isna(val) and val != "" else None
 

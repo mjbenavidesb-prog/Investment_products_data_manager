@@ -338,13 +338,14 @@ def generate_factsheet_pdf(product: dict,
     chart_end = actual_ac_date or end_date
 
     # ── Barrier display ────────────────────────────────────────────────────────
-    barrier_for_chart = None
+    # barrera_capital stored as decimal downside buffer (0.25 = 25% protection,
+    # meaning the KI level is at 75% of initial).
+    barrier_for_chart = None   # normalized price level where KI triggers
     barrier_display   = "—"
     if bk is not None:
-        bk_dec = bk if bk <= 1 else bk / 100
-        barrier_for_chart = bk_dec
-        downside = (1 - bk_dec) * 100
-        barrier_display = f"{downside:.0f}%"
+        bk_dec = bk if bk <= 1 else bk / 100          # downside buffer as decimal
+        barrier_for_chart = (1 - bk_dec) * 100        # KI level as % (e.g. 75%)
+        barrier_display = f"{bk_dec * 100:.0f}%"      # display downside buffer (e.g. "25%")
 
     # ── Cupon per period ───────────────────────────────────────────────────────
     coupon_dates = []
@@ -426,7 +427,9 @@ def generate_factsheet_pdf(product: dict,
 
     # ── Narrative ──────────────────────────────────────────────────────────────
     cc_pct_str = f"{(cc*100 if cc and cc<=1 else cc or 0):.2f}%"
-    barrier_ki = f"{(bk*100 if bk and bk<=1 else bk or 0):.0f}%"
+    # barrier_ki = KI level (e.g. 75%), barrier_display = downside buffer (e.g. 25%)
+    bk_dec_narr = (bk if bk and bk <= 1 else (bk / 100 if bk else 0))
+    barrier_ki  = f"{(1 - bk_dec_narr) * 100:.0f}%"   # KI level for narrative text
 
     if label == "Autocall":
         rend_str = f"{total_paid:.3f}%" if total_paid else "—"

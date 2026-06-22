@@ -1,5 +1,6 @@
 import streamlit as st
 import backend.config as cfg
+from backend.database import reseed_from_csv
 
 
 def _swatch(color: str, label: str) -> str:
@@ -94,6 +95,22 @@ def render():
             if new_api_key.strip():
                 cfg.save("claude_api_key", new_api_key.strip())
             st.success("Settings saved. Reload the page to apply colors across all charts.")
+
+    # ── Database section ───────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("#### Database")
+    st.caption(
+        "Si actualizaste el CSV o hay valores incorrectos (cupones en 0, barreras mal), "
+        "usa este botón para borrar la base y re-importar desde el CSV."
+    )
+    if st.button("Reseed Database from CSV", type="secondary"):
+        with st.spinner("Borrando base y re-importando..."):
+            result = reseed_from_csv()
+        if result:
+            st.success("Base re-importada correctamente desde el CSV.")
+            st.rerun()
+        else:
+            st.error("No se encontró el archivo CSV en data/. Colócalo ahí primero.")
 
     with tab_lists:
         st.markdown("Edit the dropdown options available throughout the app.")
