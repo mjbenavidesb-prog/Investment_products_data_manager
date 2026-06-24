@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 import backend.config as cfg
 
@@ -517,6 +518,8 @@ _DASHBOARD_SVG = """
 </svg>
 """
 
+_DASHBOARD_SVG_B64 = base64.b64encode(_DASHBOARD_SVG.encode()).decode()
+
 
 def render_landing():
     st.markdown(_BASE_CSS, unsafe_allow_html=True)
@@ -549,7 +552,7 @@ def render_landing():
 <div class="lp-preview">
     <div class="lp-preview-label">Live dashboard preview</div>
     <div class="lp-preview-card">
-        {_DASHBOARD_SVG}
+        <img src="data:image/svg+xml;base64,{_DASHBOARD_SVG_B64}" width="760" style="display:block;"/>
     </div>
 </div>
 
