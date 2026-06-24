@@ -292,7 +292,7 @@ Factsheet shows both: "Rendimiento del Producto" (total) and "Rendimiento del su
 
 ## Streamlit Cloud Deployment
 
-URL: https://structured-products-data-manager.streamlit.app (or similar)
+URL: https://structured-funds-data-manager.streamlit.app
 Repo: https://github.com/mjbenavidesb-prog/Structured_Products_Data_Manager
 
 Secrets to set in Streamlit Cloud dashboard:

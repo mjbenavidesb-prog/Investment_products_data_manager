@@ -101,6 +101,7 @@ def render():
                 "Date": r["_fecha_vcto"],
                 "Type": "Maturity",
                 "AUM": r["monto_total"],
+                "Vehiculo": r.get("vehiculo", "—"),
             })
     if event_type in ("Both", "Autocalls") and not autocalls.empty:
         for _, r in autocalls.iterrows():
@@ -109,6 +110,7 @@ def render():
                 "Date": r["autocall_date"],
                 "Type": "Autocall Obs.",
                 "AUM": r["monto_total"],
+                "Vehiculo": r.get("vehiculo", "—"),
             })
 
     if timeline_rows:
@@ -117,6 +119,7 @@ def render():
         monthly = tl_df.groupby(["Month", "Type"])["AUM"].sum().reset_index()
 
         months = sorted(monthly["Month"].unique())
+        month_labels = [pd.Period(m, "M").strftime("%b") for m in months]
         fig = go.Figure()
 
         for etype, color in [("Maturity", primary), ("Autocall Obs.", secondary)]:
@@ -125,7 +128,7 @@ def render():
                 aum_by_month = sub.set_index("Month")["AUM"].reindex(months, fill_value=0)
                 fig.add_trace(go.Bar(
                     name=etype,
-                    x=months,
+                    x=month_labels,
                     y=aum_by_month.values,
                     marker=dict(color=color, line=dict(color=_CARD_BG, width=1)),
                     hovertemplate="<b>%{x}</b><br>AUM: $%{y:,.0f}<extra></extra>",
@@ -147,7 +150,7 @@ def render():
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # ── Days-to-event waterfall strip ─────────────────────────────────────────
+    # ── Product timeline by vehicle ────────────────────────────────────────────
     if timeline_rows:
         tl_df_sorted = pd.DataFrame(timeline_rows).sort_values("Date")
         fig2 = go.Figure()
@@ -156,31 +159,30 @@ def render():
             sub = tl_df_sorted[tl_df_sorted["Type"] == etype]
             fig2.add_trace(go.Scatter(
                 x=sub["Date"],
-                y=sub["AUM"],
-                mode="markers+text",
+                y=sub["Vehiculo"],
+                mode="markers",
                 name=etype,
                 marker=dict(
-                    size=sub["AUM"].apply(lambda v: max(8, min(30, v / 100_000))),
+                    size=sub["AUM"].apply(lambda v: max(10, min(40, v / 80_000))),
                     color=color_map.get(etype, accent),
                     line=dict(color=_CARD_BG, width=1),
                     opacity=0.85,
                 ),
-                text=sub["Product"].apply(lambda s: s[:18]),
-                textposition="top center",
-                textfont=dict(size=8, color=_SUB),
-                hovertemplate="<b>%{text}</b><br>Date: %{x|%d %b %Y}<br>AUM: $%{y:,.0f}<extra></extra>",
+                customdata=list(zip(sub["Product"], sub["AUM"])),
+                hovertemplate="<b>%{customdata[0]}</b><br>%{x|%d %b %Y}<br>AUM: $%{customdata[1]:,.0f}<extra></extra>",
             ))
+        n_vehicles = tl_df_sorted["Vehiculo"].nunique()
         fig2.update_layout(
             template="plotly_dark",
             paper_bgcolor=_CARD_BG,
             plot_bgcolor=_CARD_BG,
             font=dict(color=_TEXT, family="Inter, sans-serif", size=11),
-            height=260,
-            margin=dict(t=30, b=10, l=10, r=10),
-            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=_SUB, size=11), orientation="h", y=1.05),
-            xaxis=dict(gridcolor=_GRID, zeroline=False, title=""),
-            yaxis=dict(gridcolor=_GRID, zeroline=False, tickprefix="$", title="AUM"),
-            title=dict(text="Product Timeline (bubble size = AUM)", font=dict(size=13, color=_TEXT), x=0),
+            height=max(200, n_vehicles * 60 + 80),
+            margin=dict(t=36, b=10, l=10, r=10),
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=_SUB, size=11), orientation="h", y=1.08),
+            xaxis=dict(gridcolor=_GRID, zeroline=False, title="", dtick="M1", tickformat="%b"),
+            yaxis=dict(gridcolor=_GRID, zeroline=False, title="", automargin=True),
+            title=dict(text="Product Timeline por Vehículo (bubble size = AUM)", font=dict(size=13, color=_TEXT), x=0),
         )
         st.plotly_chart(fig2, use_container_width=True)
 
