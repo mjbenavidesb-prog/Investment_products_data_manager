@@ -20,8 +20,8 @@ FIELDS TO EXTRACT:
 {
   "nombre_producto": "Short commercial name max 60 chars (e.g. 'Range Accrual XLK-XLU-XLP-XLY 75% Jun29')",
   "tipo": "Certificate | Note | Warrant | Bond",
-  "isin": "ISIN code or null",
-  "cusip": "CUSIP if present and no ISIN, else null",
+  "isin": "ISIN code — look for labels 'ISIN', 'Securities Code', 'Valor No.', 'Security Identification Number', 'Common Code'. Always starts with 2 letters + 10 chars (e.g. 'XS2847362748', 'US12345678AB'). Return null only if genuinely absent.",
+  "cusip": "CUSIP (9-char alphanumeric) if present and no ISIN, else null",
   "moneda": "USD | EUR | GBP | PEN | CLP | COP",
   "contraparte": "Guarantor bank short name (e.g. 'Nomura Holdings')",
   "garante": "Guarantor full legal name or null",
@@ -55,8 +55,8 @@ FIELDS TO EXTRACT:
 
   "cupon_fijo": annual fixed coupon as decimal or null,
   "cupon_contingente": annual contingent/range accrual coupon as decimal (0.11 for 11% p.a.) or null,
-  "barrera_cupon": coupon observation barrier as decimal (0.75 for 75%) or null,
-  "barrera_capital": capital protection / knock-in barrier as decimal or null,
+  "barrera_cupon": coupon observation barrier as decimal (0.75 for 75%) or null. SET TO NULL for participation products (Airbag, Call Spread / Buffered Note, Capital Protected Participation, Dual Directional) — these have no coupon barrier.,
+  "barrera_capital": capital protection / knock-in / floor barrier as decimal or null,
   "tipo_caida": "Knock In | Low Strike | Put Spread | None",
   "cap": cap level as decimal or null,
   "factor_participacion": participation rate as decimal or null,
