@@ -347,7 +347,7 @@ def render_landing():
 
     st.markdown("""
 <div class="lp-nav">
-    <div class="lp-logo">Structure<span>IQ</span></div>
+    <div class="lp-logo">Structure<span>AI</span></div>
     <div class="lp-nav-links">
         <a href="#">Features</a>
         <a href="#">How it works</a>
@@ -462,7 +462,7 @@ def render_login():
     with left:
         st.markdown("""
 <div class="login-left">
-    <div class="login-logo">Structure<span>IQ</span></div>
+    <div class="login-logo">Structure<span>AI</span></div>
     <div class="login-title">Sign in to your account</div>
     <div class="login-sub">Enter your credentials to access the platform.</div>
     <div class="login-demo-hint">

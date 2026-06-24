@@ -126,6 +126,15 @@ def init_db():
             fecha_autocall_10 TEXT,
             fecha_obs_final_ac TEXT,
             proximo_autocall TEXT,
+            elemento_1_tipo TEXT,
+            elemento_1_leverage REAL,
+            elemento_1_posicion TEXT,
+            elemento_2_tipo TEXT,
+            elemento_2_leverage REAL,
+            elemento_2_posicion TEXT,
+            elemento_3_tipo TEXT,
+            elemento_3_leverage REAL,
+            elemento_3_posicion TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -152,6 +161,25 @@ def init_db():
         )
     """)
 
+    conn.commit()
+
+    # Migrate existing tables: add columns introduced in later schema versions
+    _new_cols = [
+        ("elemento_1_tipo", "TEXT"),
+        ("elemento_1_leverage", "REAL"),
+        ("elemento_1_posicion", "TEXT"),
+        ("elemento_2_tipo", "TEXT"),
+        ("elemento_2_leverage", "REAL"),
+        ("elemento_2_posicion", "TEXT"),
+        ("elemento_3_tipo", "TEXT"),
+        ("elemento_3_leverage", "REAL"),
+        ("elemento_3_posicion", "TEXT"),
+    ]
+    for _col, _typ in _new_cols:
+        try:
+            conn.execute(f"ALTER TABLE products ADD COLUMN {_col} {_typ}")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 

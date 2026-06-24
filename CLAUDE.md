@@ -1,4 +1,4 @@
-# CLAUDE.md — StructureIQ Project Context
+# CLAUDE.md — StructureAI Project Context
 
 This file is loaded automatically by Claude Code at every session. It contains all persistent
 knowledge about this project: architecture, domain expertise, design decisions, and key bugs fixed.
@@ -7,7 +7,7 @@ knowledge about this project: architecture, domain expertise, design decisions, 
 
 ## Project Overview
 
-**StructureIQ** — a Streamlit-based lifecycle management platform for structured products.
+**StructureAI** — a Streamlit-based lifecycle management platform for structured products.
 Built as a university capstone (UP, Lima, Peru). Presented June 24, 2026, slot 08:55–09:05.
 
 Owner: Mauricio Jorge Benavides Bautista (mj.benavidesb@alum.up.edu.pe)

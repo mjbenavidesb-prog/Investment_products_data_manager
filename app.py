@@ -6,7 +6,7 @@ import streamlit as st
 import backend.config as cfg
 
 st.set_page_config(
-    page_title="StructureIQ",
+    page_title="StructureAI",
     page_icon="assets/favicon.ico" if __import__("pathlib").Path("assets/favicon.ico").exists() else None,
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -352,8 +352,8 @@ if company_name:
     initials = "".join(w[0] for w in company_name.split()[:2]).upper()
     display_name = company_name
 else:
-    initials = "SQ"
-    display_name = "StructureIQ"
+    initials = "SA"
+    display_name = "StructureAI"
 
 nav_col, signout_col = st.columns([11, 1])
 with nav_col:
