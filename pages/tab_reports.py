@@ -199,11 +199,11 @@ def _view_country(filtered, primary):
     report_df = pd.DataFrame([
         {"País": k, "AUM (USD)": v, "% del Total": round(v / total * 100, 2)}
         for k, v in data.items() if v > 0
-    ]).sort_values("AUM (USD)", ascending=False)
-
+    ])
     if report_df.empty:
         st.info("Sin datos para el filtro seleccionado.")
         return pd.DataFrame()
+    report_df = report_df.sort_values("AUM (USD)", ascending=False)
 
     c1, c2 = st.columns([3, 2])
     with c1:
@@ -224,11 +224,11 @@ def _view_segment(filtered, primary):
     report_df = pd.DataFrame([
         {"Segmento": k, "AUM (USD)": v, "% del Total": round(v / total * 100, 2)}
         for k, v in data.items() if v > 0
-    ]).sort_values("AUM (USD)", ascending=False)
-
+    ])
     if report_df.empty:
         st.info("Sin datos de segmento para el filtro seleccionado.")
         return pd.DataFrame()
+    report_df = report_df.sort_values("AUM (USD)", ascending=False)
 
     c1, c2 = st.columns([3, 2])
     with c1:
