@@ -449,27 +449,27 @@ _DASHBOARD_SVG = """
   <text x="74" y="312" font-family="Inter,sans-serif" font-size="7.5" fill="#334155" text-anchor="end">0</text>
 
   <!-- Bars (bottom at y=308, max height for 120M = 120px) -->
-  <!-- Opportunity $89M -> height 89 -->
+  <!-- Opportunity $89M - height 89 -->
   <rect x="96" y="219" width="44" height="89" rx="3" fill="#6366F1" opacity="0.9"/>
   <text x="118" y="213" font-family="Inter,sans-serif" font-size="8" fill="#A5B4FC" font-weight="600" text-anchor="middle">$89M</text>
   <text x="118" y="320" font-family="Inter,sans-serif" font-size="8" fill="#475569" text-anchor="middle">Opp.</text>
 
-  <!-- Cap. Proteg. $60M -> height 60 -->
+  <!-- Cap. Proteg. $60M - height 60 -->
   <rect x="162" y="248" width="44" height="60" rx="3" fill="#0D9488" opacity="0.85"/>
   <text x="184" y="242" font-family="Inter,sans-serif" font-size="8" fill="#5EEAD4" font-weight="600" text-anchor="middle">$60M</text>
   <text x="184" y="320" font-family="Inter,sans-serif" font-size="8" fill="#475569" text-anchor="middle">Cap.P.</text>
 
-  <!-- Híbrido $32M -> height 32 -->
+  <!-- Híbrido $32M - height 32 -->
   <rect x="228" y="276" width="44" height="32" rx="3" fill="#F59E0B" opacity="0.85"/>
   <text x="250" y="270" font-family="Inter,sans-serif" font-size="8" fill="#FCD34D" font-weight="600" text-anchor="middle">$32M</text>
   <text x="250" y="320" font-family="Inter,sans-serif" font-size="8" fill="#475569" text-anchor="middle">Híbr.</text>
 
-  <!-- Renta Fija $14M -> height 14 -->
+  <!-- Renta Fija $14M - height 14 -->
   <rect x="294" y="294" width="44" height="14" rx="3" fill="#8B5CF6" opacity="0.85"/>
   <text x="316" y="288" font-family="Inter,sans-serif" font-size="8" fill="#C4B5FD" font-weight="600" text-anchor="middle">$14M</text>
   <text x="316" y="320" font-family="Inter,sans-serif" font-size="8" fill="#475569" text-anchor="middle">R.Fija</text>
 
-  <!-- Commodities $2M -> height 2 -->
+  <!-- Commodities $2M - height 2 -->
   <rect x="360" y="306" width="44" height="2" rx="1" fill="#64748B" opacity="0.7"/>
   <text x="382" y="300" font-family="Inter,sans-serif" font-size="8" fill="#475569" font-weight="600" text-anchor="middle">$2M</text>
   <text x="382" y="320" font-family="Inter,sans-serif" font-size="8" fill="#475569" text-anchor="middle">Comm.</text>
