@@ -695,7 +695,7 @@ def _build_scenario_tbl(slide, x, y, w, unds: list, barrier_pct: float,
     scenarios = _scen_returns(barrier_pct, n_u)
 
     row_labels = unds[:n_u] + ["Rend. subyacente", "Rentabilidad\ndel Producto"]
-    n_rows = len(row_labels)
+    n_rows = len(row_labels) + 1  # +1 for header row
     n_cols = 1 + 5  # label + 5 examples
     row_h  = 0.21
     total_h = n_rows * row_h

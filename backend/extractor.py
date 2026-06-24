@@ -18,9 +18,9 @@ CRITICAL RULES:
 
 FIELDS TO EXTRACT:
 {
-  "nombre_producto": "Short commercial name max 60 chars (e.g. 'Range Accrual XLK-XLU-XLP-XLY 75% Jun29')",
+  "nombre_producto": "Descriptive commercial name max 60 chars. Build it as: [Issuer short name] [Product type] [Underlyings joined by /] [Key barrier or buffer %] [Maturity MonYY]. Examples: 'BNP Twin Win SPX/RTY 83.75% Jun27', 'Nomura Range Accrual XLK/XLU/XLP 75% Dec28', 'CACIB Airbag SPY/RSP/QQQ 87% Mar27'. If the termsheet already has a short commercial name (e.g. printed at the top as product title or in a 'Product Name' field), use that verbatim. Otherwise construct it from the fields above.",
   "tipo": "Certificate | Note | Warrant | Bond",
-  "isin": "ISIN code — look for labels 'ISIN', 'Securities Code', 'Valor No.', 'Security Identification Number', 'Common Code'. Always starts with 2 letters + 10 chars (e.g. 'XS2847362748', 'US12345678AB'). Return null only if genuinely absent.",
+  "isin": "ISIN code — scan the ENTIRE document for any 12-character code that matches the pattern [A-Z]{2}[A-Z0-9]{10}. Look near labels: 'ISIN', 'ISIN Code', 'Securities Code', 'Security Code', 'Product Code', 'Valor No.', 'WKN', 'Common Code', 'Security Identification Number', 'Identification Number', 'Code'. Also check headers, footers, term boxes, and any table. Return null only if genuinely absent after a thorough search.",
   "cusip": "CUSIP (9-char alphanumeric) if present and no ISIN, else null",
   "moneda": "USD | EUR | GBP | PEN | CLP | COP",
   "contraparte": "Guarantor bank short name (e.g. 'Nomura Holdings')",
