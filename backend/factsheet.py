@@ -1397,3 +1397,470 @@ def generate_factsheet_pdf(product: dict, event_type: str, company_name: str,
     prs.save(buf)
     buf.seek(0)
     return buf.getvalue()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EJECUTADO — DISTRIBUTION PRODUCT FACTSHEET
+# Range Accrual, Phoenix (in-progress), Callable Note
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _add_biz_days(d: date, n: int) -> date:
+    while n > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            n -= 1
+    return d
+
+
+def _empty_chart() -> BytesIO:
+    fig, ax = plt.subplots(figsize=(4.2, 2.8))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#F9FAFB")
+    ax.text(0.5, 0.5, "Sin datos disponibles", transform=ax.transAxes,
+            ha="center", va="center", fontsize=9, color="#9CA3AF")
+    ax.axis("off")
+    fig.tight_layout(pad=0.4)
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return buf
+
+
+def _chart_5yr_hist(unds: list, fecha_inicio, barrier_pct: float = 75.0) -> BytesIO:
+    """5-year historical chart normalized to 100 at fecha_inicio, dotted line at 100."""
+    if not unds or not YF_OK:
+        return _empty_chart()
+    inicio = _parse_date(fecha_inicio) or date.today()
+    start_dt = inicio - timedelta(days=5 * 366)
+    yf_tickers = [resolve_ticker(u) for u in unds if resolve_ticker(u)]
+    if not yf_tickers:
+        return _empty_chart()
+    try:
+        raw = yf.download(
+            yf_tickers,
+            start=str(start_dt),
+            end=str(date.today() + timedelta(days=2)),
+            auto_adjust=False, progress=False,
+        )
+        if raw.empty:
+            return _empty_chart()
+        if isinstance(raw.columns, pd.MultiIndex):
+            closes = raw["Close"].copy()
+        else:
+            closes = raw[["Close"]].copy()
+            closes.columns = yf_tickers[:1]
+        closes.index = pd.to_datetime(closes.index).tz_localize(None)
+        closes.columns = unds[:len(closes.columns)]
+        pre = closes[closes.index.date <= inicio]
+        if pre.empty:
+            pre = closes.iloc[:1]
+        init_vals = pre.iloc[-1]
+        norm = closes / init_vals * 100
+
+        fig, ax = plt.subplots(figsize=(4.2, 2.8))
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+        for i, col in enumerate(norm.columns):
+            ax.plot(norm.index, norm[col], color=_LINE_COLORS[i % 4],
+                    linewidth=1.1, label=col)
+        ax.axhline(100, color="#6B7280", linewidth=0.9, linestyle="--", alpha=0.8)
+        ax.axhline(barrier_pct, color="#DC2626", linewidth=0.9, linestyle="--",
+                   alpha=0.7, label=f"Barrera ({barrier_pct:.0f}%)")
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.xaxis.set_major_locator(mdates.YearLocator())
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=0, ha="center", fontsize=8)
+        plt.setp(ax.yaxis.get_majorticklabels(), fontsize=8)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.spines[["left", "bottom"]].set_color("#E5E7EB")
+        ax.tick_params(colors="#6B7280", length=3)
+        ax.grid(axis="y", linestyle="--", alpha=0.25, linewidth=0.5)
+        ax.legend(fontsize=7.5, loc="upper left", framealpha=0.8,
+                  ncol=2, handlelength=1.2, borderpad=0.3, labelspacing=0.2)
+        fig.tight_layout(pad=0.3)
+        buf = BytesIO()
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        return buf
+    except Exception:
+        return _empty_chart()
+
+
+def _build_capital_return_tbl(slide, x, y, w, unds: list,
+                               barrier_pct: float, pri: RGBColor) -> float:
+    """Illustrative capital return scenario table for distribution products."""
+    n_u = min(len(unds), 4)
+    buffer_pct = 100 - barrier_pct
+
+    w_scen = [10, -round(buffer_pct * 0.5), -round(buffer_pct * 1.2),
+              -round(buffer_pct * 1.6), -round(barrier_pct * 0.67), -100]
+
+    raw = [
+        [15, 12, 22, 10],
+        [5, -round(buffer_pct * 0.5) - 8, 3, -round(buffer_pct * 0.5)],
+        [-round(buffer_pct * 1.2), -round(buffer_pct * 0.8),
+         -round(buffer_pct * 0.5), -round(buffer_pct * 0.3)],
+        [-round(buffer_pct * 1.6), -round(buffer_pct * 1.2),
+         -round(buffer_pct * 1.0), -round(buffer_pct * 0.8)],
+        [-round(barrier_pct * 0.67), -round(barrier_pct * 0.5),
+         -round(barrier_pct * 0.4), -round(barrier_pct * 0.5)],
+        [-100, -80, -70, -90],
+    ]
+
+    n_rows = 1 + n_u + 2
+    row_h  = 0.18
+    total_h = n_rows * row_h
+
+    tbl = slide.shapes.add_table(
+        n_rows, 7, Inches(x), Inches(y), Inches(w), Inches(total_h)
+    ).table
+    emu_w = int(Inches(w))
+    tbl.columns[0].width = int(emu_w * 0.28)
+    for ci in range(1, 7):
+        tbl.columns[ci].width = int(emu_w * 0.12)
+    for ri in range(n_rows):
+        tbl.rows[ri].height = int(Inches(row_h))
+
+    _cell_fmt(tbl.cell(0, 0), "Sector", size=7, bold=True,
+              fill=pri, color=_WHITE, align=PP_ALIGN.CENTER)
+    for ci in range(1, 7):
+        _cell_fmt(tbl.cell(0, ci), f"Ejm {ci}", size=7, bold=True,
+                  fill=pri, color=_WHITE, align=PP_ALIGN.CENTER)
+
+    for ri in range(1, n_u + 1):
+        und = unds[ri - 1]
+        bg = _LIGHT if ri % 2 == 0 else _WHITE
+        _cell_fmt(tbl.cell(ri, 0), und, size=7, bold=True, bg=bg)
+        for ci, row_vals in enumerate(raw, 1):
+            v = row_vals[ri - 1] if ri - 1 < len(row_vals) else w_scen[ci - 1]
+            sign = "+" if v >= 0 else ""
+            _cell_fmt(tbl.cell(ri, ci), f"{sign}{v:.0f}%",
+                      size=7, align=PP_ALIGN.CENTER, bg=bg)
+
+    ri_w = n_u + 1
+    bg = _LIGHT if ri_w % 2 == 0 else _WHITE
+    _cell_fmt(tbl.cell(ri_w, 0), "Rend. Peor Sub.", size=7, bold=True, bg=bg)
+    for ci, wv in enumerate(w_scen, 1):
+        sign = "+" if wv >= 0 else ""
+        _cell_fmt(tbl.cell(ri_w, ci), f"{sign}{wv:.0f}%",
+                  size=7, align=PP_ALIGN.CENTER, bg=bg)
+
+    ri_dc = n_u + 2
+    bg = _LIGHT if ri_dc % 2 == 0 else _WHITE
+    _cell_fmt(tbl.cell(ri_dc, 0), "Dev. de Capital", size=7, bold=True, bg=bg)
+    for ci, wv in enumerate(w_scen, 1):
+        if wv >= -buffer_pct:
+            dc = 100.0
+        else:
+            dc = max(0.0, (100 + wv) / barrier_pct * 100)
+        color = _rgb("#16A34A") if dc >= 100 else (_rgb("#DC2626") if dc < 80 else _DARK)
+        _cell_fmt(tbl.cell(ri_dc, ci), f"{dc:.1f}%", size=7, bold=True,
+                  align=PP_ALIGN.CENTER, bg=bg, color=color)
+
+    return total_h
+
+
+def _build_cronograma_tbl(slide, x, y, w, ac_dates: list, pri: RGBColor) -> float:
+    """Full observation + payment schedule table."""
+    if not ac_dates:
+        return 0.0
+    n = len(ac_dates)
+    row_h   = 0.18
+    total_h = (n + 1) * row_h
+
+    tbl = slide.shapes.add_table(
+        n + 1, 3, Inches(x), Inches(y), Inches(w), Inches(total_h)
+    ).table
+    emu_w = int(Inches(w))
+    tbl.columns[0].width = int(emu_w * 0.10)
+    tbl.columns[1].width = int(emu_w * 0.45)
+    tbl.columns[2].width = int(emu_w * 0.45)
+    for ri in range(n + 1):
+        tbl.rows[ri].height = int(Inches(row_h))
+
+    for ci, hdr in enumerate(["N°", "Fecha de Observación", "Fecha de Pago"]):
+        _cell_fmt(tbl.cell(0, ci), hdr, size=7.5, bold=True,
+                  fill=pri, color=_WHITE, align=PP_ALIGN.CENTER)
+
+    for ri, obs_d in enumerate(ac_dates, 1):
+        pay_d = _add_biz_days(obs_d, 5)
+        bg = _LIGHT if ri % 2 == 0 else _WHITE
+        _cell_fmt(tbl.cell(ri, 0), str(ri), size=7.5, align=PP_ALIGN.CENTER, bg=bg)
+        _cell_fmt(tbl.cell(ri, 1), _fmt_long(obs_d), size=7.5, align=PP_ALIGN.CENTER, bg=bg)
+        _cell_fmt(tbl.cell(ri, 2), _fmt_long(pay_d), size=7.5, align=PP_ALIGN.CENTER, bg=bg)
+
+    return total_h
+
+
+def generate_factsheet_ejecutado_dist(
+    product: dict,
+    company_name: str,
+    primary: str,
+    secondary: str = "#DC2626",
+    logo_bytes: bytes | None = None,
+    disclaimer: str | None = None,
+) -> bytes:
+    """
+    A4 Ejecutado factsheet for distribution products (Range Accrual, Phoenix live, etc.)
+    Layout:
+      Header · Title · INFORMACIÓN DEL PRODUCTO bar
+      [DESCRIPCION Y ESTRATEGIA | CARACTERÍSTICAS GENERALES]
+      [narrative + initial prices table | characteristics table]
+      [ESTRUCTURA DEL PRODUCTO | DEVOLUCIÓN DEL CAPITAL]
+      [5-year historical chart | capital return formula + scenarios]
+      [AUTOCALL | CUPÓN]
+      CRONOGRAMA (full schedule)
+      Disclaimer
+    """
+    if not _PPTX:
+        raise ImportError("python-pptx not installed.")
+
+    PRI = _rgb(primary)
+    SEC = _rgb(secondary)
+
+    # ── Product fields ──────────────────────────────────────────────────────
+    name         = str(product.get("nombre_producto") or "")
+    tipo         = str(product.get("tipo") or "Nota Estructurada")
+    asset_class  = str(product.get("asset_class") or "Renta Variable")
+    moneda       = str(product.get("moneda") or "USD")
+    isin         = str(product.get("isin") or "—")
+    contraparte  = str(product.get("contraparte") or "—")
+    vehiculo     = str(product.get("vehiculo") or "—")
+    tipo_cliente = str(product.get("tipo_cliente") or "—")
+
+    fecha_inicio  = _parse_date(product.get("fecha_inicio") or product.get("fecha_strike"))
+    fecha_obs_fin = _parse_date(product.get("fecha_obs_final"))
+    fecha_vencto  = _parse_date(
+        product.get("fecha_vencimiento") or
+        product.get("fecha_obs_final") or
+        product.get("fecha_obs_final_ac")
+    )
+
+    plazo_meses  = _sf(product.get("plazo_meses"))
+    cupon_cont   = _sf(product.get("cupon_contingente"))
+    cupon_fijo   = _sf(product.get("cupon_fijo"))
+    cupon        = cupon_cont or cupon_fijo
+    cupon_annual = (cupon * 100 if cupon and cupon <= 1 else cupon) if cupon else 0
+
+    barrera_cap = _sf(product.get("barrera_capital")) or 0.75
+    barrera_cap_pct = barrera_cap * 100 if barrera_cap <= 1 else barrera_cap
+    buffer_pct  = 100 - barrera_cap_pct
+    factor      = 100 / barrera_cap_pct
+
+    obs_autocall = str(product.get("observacion_autocall") or "Trimestral")
+    obs_cupon    = str(product.get("observacion_cupon") or "Trimestral")
+    periodo_nc   = str(product.get("periodo_sin_autocall") or "")
+
+    unds = [str(product.get(f"underlying_{i}")).strip()
+            for i in range(1, 5)
+            if product.get(f"underlying_{i}") and
+               str(product.get(f"underlying_{i}")).strip() not in ("", "nan", "None")]
+
+    strikes = {u: _sf(product.get(f"strike_{i}"))
+               for i, u in enumerate(unds, 1)
+               if _sf(product.get(f"strike_{i}"))}
+
+    ac_dates = [d for i in range(1, 13)
+                if (d := _parse_date(product.get(f"fecha_autocall_{i}")))]
+
+    # ── Derived strings ─────────────────────────────────────────────────────
+    plazo_str   = f"{int(plazo_meses)} meses" if plazo_meses else "—"
+    moneda_str  = "Dólares Americanos" if "USD" in moneda.upper() else moneda
+    cupon_str   = f"{cupon_annual:.2f}%" if cupon_annual else "—"
+    barrera_str = f"{barrera_cap_pct:.0f}%"
+    buffer_str  = f"{buffer_pct:.0f}%"
+
+    und_long = [_UND_LABELS.get(u, u) for u in unds]
+    sub_desc = ("Worst of: " + ", ".join(und_long)) if len(unds) > 1 else (und_long[0] if und_long else "—")
+
+    if strikes:
+        items = [f"{u}: {v:,.2f}" for u, v in strikes.items() if v]
+        if len(items) <= 2:
+            nivel_ini = " / ".join(items)
+        else:
+            mid = (len(items) + 1) // 2
+            nivel_ini = " / ".join(items[:mid]) + "\n" + " / ".join(items[mid:])
+    else:
+        nivel_ini = "—"
+
+    # ── Characteristics rows ────────────────────────────────────────────────
+    caract_rows = [
+        ("Tipo de producto",             tipo),
+        ("Clasificación",                asset_class),
+        ("Plataforma",                   vehiculo),
+        ("Cliente",                      tipo_cliente),
+        ("Subyacente",                   sub_desc),
+        ("Moneda",                       moneda_str),
+        ("Plazo",                        plazo_str),
+        ("Riesgo del producto",          contraparte),
+        ("Observación Autocall",         obs_autocall),
+        ("Periodo sin Autocall",         periodo_nc),
+        ("Pago de Cupones",              obs_cupon),
+        ("Cupón anual contingente",      cupon_str),
+        ("Barrera",                      barrera_str),
+        ("Nivel Inicial",                nivel_ini),
+        ("ISIN",                         isin),
+        ("Fecha de observación inicial", _fmt_short(fecha_inicio)),
+        ("Fecha de observación final",   _fmt_short(fecha_obs_fin or fecha_vencto)),
+        ("Fecha de vencimiento (pago)",  _fmt_short(fecha_vencto)),
+    ]
+    caract_rows = [(k, v) for k, v in caract_rows if v and v not in ("—", "", "nan")]
+
+    # ── Build chart ─────────────────────────────────────────────────────────
+    chart_5yr = _chart_5yr_hist(unds, fecha_inicio, barrera_cap_pct)
+
+    # ── BUILD SLIDE ─────────────────────────────────────────────────────────
+    prs = Presentation()
+    prs.slide_width  = Inches(_W)
+    prs.slide_height = Inches(_H)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    for ph in list(slide.placeholders):
+        ph._element.getparent().remove(ph._element)
+
+    H_BAR = 0.22
+    y = 0.00
+
+    # 1. Header
+    H_HDR = 0.60
+    _rect(slide, 0, y, _W, H_HDR, PRI)
+    if logo_bytes:
+        slide.shapes.add_picture(BytesIO(logo_bytes), Inches(_ML), Inches(y + 0.05),
+                                 width=None, height=Inches(H_HDR - 0.10))
+    else:
+        _txt(slide, _ML, y + 0.10, 2.5, H_HDR - 0.20, company_name,
+             size=9, bold=True, color=_WHITE)
+    bw = 1.0
+    badge = _rect(slide, _W - bw - 0.20, y + 0.10, bw, H_HDR - 0.20, _WHITE)
+    btf = badge.text_frame
+    btf.margin_left = btf.margin_right = Inches(0.05)
+    btf.margin_top  = btf.margin_bottom = Inches(0.02)
+    bp = btf.paragraphs[0]; bp.alignment = PP_ALIGN.CENTER
+    br = bp.add_run(); br.text = "EJECUTADO"
+    br.font.name = "Inter"; br.font.size = Pt(9)
+    br.font.bold = True; br.font.color.rgb = PRI
+    y += H_HDR + 0.05
+
+    # 2. Title
+    _txt(slide, _ML, y, _CW, 0.26, f"EJECUTADO – {name}", size=11, bold=True, color=SEC)
+    y += 0.30
+
+    # 3. INFORMACIÓN DEL PRODUCTO bar
+    _bar(slide, _ML, y, _CW, H_BAR, "INFORMACIÓN DEL PRODUCTO", SEC, size=9)
+    y += H_BAR + 0.04
+
+    # 4. Section bars
+    _bar(slide, _ML, y, _LW, H_BAR, "DESCRIPCION Y ESTRATEGIA", PRI, size=9)
+    _bar(slide, _RX, y, _RW, H_BAR, "CARACTERÍSTICAS GENERALES", PRI, size=9)
+    y += H_BAR + 0.06
+
+    # 5. Left: narrative + initial prices | Right: characteristics
+    y_top  = y
+    y_left = y_top
+
+    narrative = [
+        f"El producto brinda la posibilidad al inversionista de obtener un cupón "
+        f"contingente de {cupon_str} por año, sujeto al comportamiento de "
+        f"un conjunto de activos de {asset_class.lower()}."
+    ]
+    _multiline_txt(slide, _ML, y_left, _LW, 0.65, narrative,
+                   size=9, align=PP_ALIGN.JUSTIFY)
+    y_left += 0.68
+
+    if strikes:
+        n_pr = len(strikes)
+        pr_h = 0.20 * (n_pr + 1)
+        tbl_p = slide.shapes.add_table(
+            n_pr + 1, 2, Inches(_ML), Inches(y_left), Inches(_LW), Inches(pr_h)
+        ).table
+        emu = int(Inches(_LW))
+        tbl_p.columns[0].width = int(emu * 0.50)
+        tbl_p.columns[1].width = int(emu * 0.50)
+        for ri in range(n_pr + 1):
+            tbl_p.rows[ri].height = int(Inches(0.20))
+        _cell_fmt(tbl_p.cell(0, 0), "Subyacente", bold=True, fill=PRI,
+                  color=_WHITE, align=PP_ALIGN.CENTER, size=8)
+        _cell_fmt(tbl_p.cell(0, 1), "Precio Inicial", bold=True, fill=PRI,
+                  color=_WHITE, align=PP_ALIGN.CENTER, size=8)
+        for ri, (u, val) in enumerate(strikes.items(), 1):
+            bg = _LIGHT if ri % 2 == 0 else _WHITE
+            _cell_fmt(tbl_p.cell(ri, 0), u, size=8, bold=True,
+                      align=PP_ALIGN.CENTER, bg=bg)
+            _cell_fmt(tbl_p.cell(ri, 1), f"{val:,.2f}", size=8,
+                      align=PP_ALIGN.CENTER, bg=bg)
+        y_left += pr_h + 0.06
+
+    _txt(slide, _ML, y_left, _LW, 0.28,
+         "*Rating Crediticio: Grado de Inversión. Las notas estructuradas califican "
+         "como \"senior unsecured debt\" en la estructura de capital de las contrapartes.",
+         size=7, color=_MUTED, italic=True)
+    y_left += 0.30
+
+    caract_h = _build_caract_table(slide, _RX, y_top, _RW, caract_rows, PRI)
+    y = max(y_left, y_top + caract_h) + 0.10
+
+    # 6. ESTRUCTURA | DEVOLUCIÓN bars
+    _bar(slide, _ML, y, _LW, H_BAR, "ESTRUCTURA DEL PRODUCTO", SEC, size=9)
+    _bar(slide, _RX, y, _RW, H_BAR, "DEVOLUCIÓN DEL CAPITAL", SEC, size=9)
+    y += H_BAR + 0.04
+
+    # 7. Left: 5yr chart | Right: formula + capital scenarios
+    y_struct = y
+    H_CHART  = 2.30
+    _embed(slide, chart_5yr, _ML, y_struct, _LW, H_CHART)
+
+    y_right = y_struct
+    formula = (
+        f"Si el peor subyacente al vencimiento está por encima del {barrera_str} de su "
+        f"nivel inicial, se devuelve el 100% del capital. De lo contrario:\n"
+        f"DC = 100% + {factor:.2f} × ({buffer_str} + Worst of)"
+    )
+    _multiline_txt(slide, _RX, y_right, _RW, 0.62,
+                   [formula], size=8, align=PP_ALIGN.JUSTIFY)
+    y_right += 0.66
+
+    cap_h = _build_capital_return_tbl(slide, _RX, y_right, _RW, unds, barrera_cap_pct, PRI)
+    y_right += cap_h
+
+    y = max(y_struct + H_CHART, y_right) + 0.10
+
+    # 8. AUTOCALL | CUPÓN
+    _bar(slide, _ML, y, _LW, H_BAR, "AUTOCALL", PRI, size=9)
+    _bar(slide, _RX, y, _RW, H_BAR, "CUPÓN", PRI, size=9)
+    y += H_BAR + 0.04
+
+    _multiline_txt(slide, _ML, y, _LW, 0.62,
+        [f"Si en alguna fecha de observación de autocall el rendimiento de todos los "
+         f"subyacentes es positivo respecto a su nivel inicial, la estructura termina "
+         f"anticipadamente y el inversionista recibe el 100% del capital más el cupón del período."],
+        size=9, align=PP_ALIGN.JUSTIFY)
+    _multiline_txt(slide, _RX, y, _RW, 0.62,
+        [f"El producto acumula un cupón diario por cada día útil que los subyacentes se "
+         f"encuentren por encima del {barrera_str} de sus niveles iniciales. "
+         f"La observación del cupón es diaria y los pagos son {obs_cupon.lower()}s."],
+        size=9, align=PP_ALIGN.JUSTIFY)
+    y += 0.66
+
+    # 9. CRONOGRAMA
+    if ac_dates:
+        _bar(slide, _ML, y, _CW, H_BAR, "CRONOGRAMA", PRI, size=9)
+        y += H_BAR + 0.04
+        sched_h = _build_cronograma_tbl(slide, _ML, y, _CW, ac_dates, PRI)
+        y += sched_h + 0.06
+
+    # 10. Disclaimer
+    disc_text = (
+        disclaimer if disclaimer
+        else "La colocación de la nota estructurada es por oferta privada. "
+             "Credicorp Capital no garantiza el pago de rendimiento y/o principal "
+             "de los valores. Los factores de riesgo incluyen riesgo de mercado, "
+             "riesgo del emisor y riesgo de liquidez."
+    )
+    remaining = _H - y
+    if remaining > 0.12:
+        _txt(slide, _ML, y, _CW, min(remaining, 0.30),
+             disc_text, size=7.5, italic=True, color=_MUTED)
+
+    buf = BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    return buf.getvalue()

@@ -174,6 +174,7 @@ def init_db():
         ("elemento_3_tipo", "TEXT"),
         ("elemento_3_leverage", "REAL"),
         ("elemento_3_posicion", "TEXT"),
+        ("custom_fields_json", "TEXT"),
     ]
     for _col, _typ in _new_cols:
         try:

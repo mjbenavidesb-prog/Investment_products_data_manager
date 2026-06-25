@@ -31,6 +31,7 @@ DEFAULTS = {
     "asset_classes": ["Equity", "Commodities", "Fixed Income"],
     "jurisdictions": ["Peru", "Panama", "Colombia", "United States", "Chile"],
     "business_days_payment": 3,
+    "custom_fields": [],
 }
 
 

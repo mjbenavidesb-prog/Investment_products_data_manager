@@ -6,6 +6,7 @@ from backend.database import get_all_products
 from backend.factsheet import (
     generate_factsheet_pdf,
     generate_factsheet_participation,
+    generate_factsheet_ejecutado_dist,
     is_participation_product,
 )
 from backend.market_data import resolve_ticker
@@ -392,11 +393,20 @@ def render():
 
         with st.spinner(f"Generating {ftype} factsheet — fetching market data..."):
             try:
-                # Route participation products to specialized generator
+                # Route to specialized generators
                 if is_participation_product(product):
                     pdf_bytes = generate_factsheet_participation(
                         product=product,
                         event_type=ftype,
+                        company_name=company_name,
+                        primary=primary,
+                        secondary=secondary,
+                        logo_bytes=logo_bytes,
+                        disclaimer=disclaimer.strip() or None,
+                    )
+                elif ftype == "Ejecutado":
+                    pdf_bytes = generate_factsheet_ejecutado_dist(
+                        product=product,
                         company_name=company_name,
                         primary=primary,
                         secondary=secondary,

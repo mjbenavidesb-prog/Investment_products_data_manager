@@ -1,7 +1,40 @@
+import re
 import streamlit as st
 import backend.config as cfg
 from backend.database import reseed_from_file, seed_from_file, get_all_products, generate_template_xlsx
 from pathlib import Path
+
+
+def _parse_custom_fields(text: str) -> list:
+    """Parse 'Label : opt1, opt2' format into list of field dicts."""
+    fields = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if ":" in line:
+            label, rest = line.split(":", 1)
+            label = label.strip()
+            if not label:
+                continue
+            opts = [o.strip() for o in rest.split(",") if o.strip()]
+            key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+            fields.append({
+                "key": key,
+                "label": label,
+                "type": "select" if opts else "text",
+                "options": opts,
+            })
+    return fields
+
+
+def _format_custom_fields(fields: list) -> str:
+    """Serialize field list back to the editable text format."""
+    lines = []
+    for f in fields:
+        opts = ", ".join(f.get("options", []))
+        lines.append(f'{f["label"]} : {opts}')
+    return "\n".join(lines)
 
 _TEMPLATES_DIR = Path("data/templates")
 
@@ -236,6 +269,32 @@ def render():
         with col_d:
             jurisdictions = list_editor("Jurisdictions", "jurisdictions", cfg.DEFAULTS["jurisdictions"])
 
+        st.markdown("---")
+        st.markdown("**Campos Adicionales (Panel Derecho — Load Product)**")
+        st.caption(
+            "Define campos personalizados que aparecen en la sección Manual Input del formulario "
+            "de carga. Formato por línea:  \n"
+            "`Nombre del campo : Opción1, Opción2, Opción3`  \n"
+            "Para campo de texto libre: `Nombre del campo :` (sin opciones).  \n"
+            "Para renombrar un campo existente agrega `:` al final con las opciones deseadas."
+        )
+
+        current_cf = cfg.get("custom_fields") or []
+        cf_default = _format_custom_fields(current_cf)
+        cf_text = st.text_area(
+            "Campos adicionales",
+            value=cf_default,
+            height=200,
+            key="list_custom_fields",
+            label_visibility="collapsed",
+            placeholder=(
+                "Advisor : María García, Juan Pérez, Carlos López\n"
+                "Canal de Venta : Digital, Presencial, Referido\n"
+                "Observaciones :"
+            ),
+        )
+        custom_fields_parsed = _parse_custom_fields(cf_text)
+
         if st.button("Save Lists", type="primary"):
             cfg.save("vehicles", vehicles)
             cfg.save("segments", segments)
@@ -245,4 +304,12 @@ def render():
             cfg.save("profiles", profiles)
             cfg.save("entities", entities)
             cfg.save("jurisdictions", jurisdictions)
+            cfg.save("custom_fields", custom_fields_parsed)
             st.success("Classification lists saved successfully.")
+
+        if custom_fields_parsed:
+            st.caption(f"**Vista previa** — {len(custom_fields_parsed)} campo(s) personalizado(s):")
+            for f in custom_fields_parsed:
+                t = "Selector" if f["type"] == "select" else "Texto libre"
+                opts = ", ".join(f["options"]) if f["options"] else "—"
+                st.caption(f"• **{f['label']}** ({t}): {opts}")

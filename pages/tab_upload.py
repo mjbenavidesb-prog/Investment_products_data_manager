@@ -5,6 +5,7 @@ Left panel  (auto-filled by Claude AI): financial structure, underlyings, dates,
 Right panel (manual user input): identity, classification, amounts, segment breakdown.
 """
 
+import json as _json
 import os
 import streamlit as st
 from datetime import date, datetime
@@ -378,6 +379,21 @@ def render():
                 monto_tyba  = st.number_input("TYBA", value=0.0, min_value=0.0,
                     step=10_000.0, format="%.0f")
 
+            # ── Custom fields from Settings ───────────────────────────────────
+            custom_field_defs = cfg.get("custom_fields") or []
+            custom_values = {}
+            if custom_field_defs:
+                st.markdown("**Campos Adicionales**")
+                for _cf in custom_field_defs:
+                    _lbl  = _cf.get("label", "")
+                    _key  = _cf.get("key") or _lbl.lower().replace(" ", "_")
+                    _opts = _cf.get("options", [])
+                    _wkey = f"cf_{_key}"
+                    if _opts:
+                        custom_values[_key] = st.selectbox(_lbl, _opts, key=_wkey)
+                    else:
+                        custom_values[_key] = st.text_input(_lbl, value="", key=_wkey)
+
         # ── Submit ────────────────────────────────────────────────────────────
         submitted = st.form_submit_button(
             "Save Product to Database", type="primary", use_container_width=True
@@ -457,6 +473,9 @@ def render():
 
         for i, d in enumerate(ac_dates):
             record[f"fecha_autocall_{i+1}"] = d.isoformat()
+
+        if custom_values:
+            record["custom_fields_json"] = _json.dumps(custom_values, ensure_ascii=False)
 
         try:
             insert_product(record)

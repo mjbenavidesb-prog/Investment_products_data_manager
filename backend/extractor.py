@@ -96,6 +96,10 @@ CLASSIFICATION HINTS:
 - perfil: Capital Protegido → "Conservador"; barrier 70-80% → "Moderado"; barrier ≤ 65% → "Agresivo"
 - For autocall dates: extract the Knock-Out Determination Days (observation dates), NOT the coupon payment dates
 - For Range Accrual: barrera_cupon = coupon barrier; barrera_capital = knock-in/capital barrier (may be same value)
+- tipo_estructura — use exactly one of these values:
+  "Distribucion" → product pays periodic income (coupons/accrual): elemento_1_tipo ∈ {Daily Range Accrual, Phoenix Autocall, Phoenix with Memory, Athena Autocall, Fixed Coupon, Digital Coupon}
+  "Participacion" → capital return depends on underlying performance at maturity, no periodic coupon: elemento_1_tipo ∈ {Long Call (ATM), Long Call (ITM), Capital Protected Participation}
+  "Hibrido" → product explicitly combines periodic coupons AND performance-linked capital at maturity
 
 ENGINEERING GUIDE — Decompose the product into its derivative building blocks:
 
