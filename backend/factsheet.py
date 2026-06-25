@@ -203,6 +203,7 @@ def _multiline_txt(slide, x, y, w, h, paragraphs: list[str], size=9,
     for i, para in enumerate(paragraphs):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = align
+        p.line_spacing = 1.25
         p.space_before = Pt(0)
         p.space_after  = Pt(5) if i < len(paragraphs) - 1 else Pt(0)
         run = p.add_run()
@@ -889,7 +890,7 @@ def generate_factsheet_participation(
     und_long = [_UND_LABELS.get(u, u) for u in unds]
     if len(unds) > 1:
         und_desc = "Worst of: " + ", ".join(und_long)
-        sub_desc = ("Opción Worst of sobre el " + " / ".join(und_long))
+        sub_desc = "Opción Worst of sobre el\n" + " / ".join(unds)
     else:
         und_desc = und_long[0] if und_long else "—"
         sub_desc = und_desc
@@ -938,16 +939,16 @@ def generate_factsheet_participation(
     for ph in list(slide.placeholders):
         ph._element.getparent().remove(ph._element)
 
-    # Y constants
-    Y_HDR   = 0.00;  H_HDR  = 0.55
-    Y_TTL   = 0.58;  H_TTL  = 0.26
-    Y_INFO  = 0.88;  H_INFO = 0.22
-    Y_BARS  = 1.14;  H_BAR  = 0.22
-    Y_TOP   = 1.40;  H_TOP  = 4.00
-    Y_BBAR  = 5.44;  H_BBAR = 0.22
-    Y_BOT   = 5.70;  H_BOT  = 4.60
-    Y_DISC  = 10.34; H_DISC = 0.60
-    Y_FOOT  = 10.96; H_FOOT = 0.22
+    # Y constants — A4 portrait (11.69"). Header enlarged, everything shifted down.
+    Y_HDR   = 0.00;  H_HDR  = 0.70
+    Y_TTL   = 0.75;  H_TTL  = 0.26
+    Y_INFO  = 1.05;  H_INFO = 0.22
+    Y_BARS  = 1.31;  H_BAR  = 0.22
+    Y_TOP   = 1.57;  H_TOP  = 4.00
+    Y_BBAR  = 5.62;  H_BBAR = 0.22
+    Y_BOT   = 5.88;  H_BOT  = 4.40
+    Y_DISC  = 10.34; H_DISC = 0.55
+    Y_FOOT  = 10.92; H_FOOT = 0.22
 
     # 1. Header bar + logo/name
     _rect(slide, 0, Y_HDR, _W, H_HDR, PRI)
@@ -1040,12 +1041,13 @@ def generate_factsheet_participation(
     tf.margin_top  = tf.margin_bottom = Inches(0)
     for li, line in enumerate(bullets):
         p = tf.paragraphs[0] if li == 0 else tf.add_paragraph()
-        p.space_before = Pt(3) if li > 0 else Pt(0)
+        p.line_spacing = 1.25
+        p.space_before = Pt(4) if li > 0 else Pt(0)
         p.space_after  = Pt(0)
         run = p.add_run()
         run.text = line
         run.font.name  = "Inter"
-        run.font.size  = Pt(8.5)
+        run.font.size  = Pt(9)
         run.font.bold  = (li == 0)
         run.font.color.rgb = _DARK
 

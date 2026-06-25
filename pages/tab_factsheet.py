@@ -416,7 +416,8 @@ def render():
                     )
                 st.success(f"Factsheet **{ftype}** generado correctamente.")
 
-                file_name = f"Factsheet_{ftype}_{selected[:40].replace(' ', '_')}.pptx"
+                safe = selected[:50].replace("/", "-").replace("\\", "-").replace(":", "-")
+                file_name = f"{ftype} – {safe}.pptx"
                 st.download_button(
                     label=f"Descargar PPTX — {file_name}",
                     data=pdf_bytes,
