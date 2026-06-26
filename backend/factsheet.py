@@ -351,9 +351,19 @@ def _build_caract_table(slide, x, y, w, rows, pri: RGBColor):
     if not n:
         return 0.0
 
-    # Row height: 0.22" per text line
-    line_counts = [max(1, str(v).count("\n") + 1) for _, v in rows]
-    row_h_in = [0.22 * lc for lc in line_counts]
+    # Estimate row heights accounting for word-wrap in the right column (56% of w).
+    # At 9pt Inter, conservatively ~13 chars/inch.
+    right_w = w * 0.56
+    cpl = max(10, int(right_w * 13))  # chars per line
+
+    def _nlines(val: str) -> int:
+        total = 0
+        for seg in str(val).split("\n"):
+            total += max(1, (len(seg.strip()) + cpl - 1) // cpl)
+        return max(1, total)
+
+    line_counts = [_nlines(v) for _, v in rows]
+    row_h_in = [0.24 * lc for lc in line_counts]  # 0.24 vs 0.22 for small safety margin
     total_h  = sum(row_h_in)
 
     tbl = slide.shapes.add_table(
@@ -1021,18 +1031,21 @@ def generate_factsheet_participation(
          "como \"senior unsecured debt\" en la estructura de capital de las contrapartes.",
          size=7.5, color=_MUTED, italic=True)
 
-    # 6. RIGHT TOP — characteristics table
-    _build_caract_table(slide, _RX, Y_TOP, _RW, caract_rows, PRI)
+    # 6. RIGHT TOP — characteristics table (height computed for dynamic layout)
+    _caract_h = _build_caract_table(slide, _RX, Y_TOP, _RW, caract_rows, PRI)
+    _y_bbar = max(Y_BBAR, Y_TOP + _caract_h + 0.14)
+    _y_bot  = _y_bbar + H_BBAR + 0.04
+    _h_bot  = Y_DISC - _y_bot - 0.08
 
     # 7. Bottom dual bars
-    _bar(slide, _ML, Y_BBAR, _LW, H_BBAR, "ESTRUCTURA DEL PRODUCTO", SEC, size=9)
-    _bar(slide, _RX, Y_BBAR, _RW, H_BBAR, "ESCENARIOS DE CAPITAL",  SEC, size=9)
+    _bar(slide, _ML, _y_bbar, _LW, H_BBAR, "ESTRUCTURA DEL PRODUCTO", SEC, size=9)
+    _bar(slide, _RX, _y_bbar, _RW, H_BBAR, "ESCENARIOS DE CAPITAL",  SEC, size=9)
 
     # 8. LEFT BOTTOM — payoff diagram
-    _embed(slide, payoff_buf, _ML, Y_BOT, _LW, H_BOT * 0.78)
+    _embed(slide, payoff_buf, _ML, _y_bot, _LW, max(2.8, _h_bot * 0.78))
 
     # 9. RIGHT BOTTOM — scenario bullets + table
-    blt_x = _RX; blt_y = Y_BOT; blt_w = _RW
+    blt_x = _RX; blt_y = _y_bot; blt_w = _RW
     # bullets text
     tb = slide.shapes.add_textbox(
         Inches(blt_x), Inches(blt_y), Inches(blt_w), Inches(1.50))
@@ -1052,7 +1065,7 @@ def generate_factsheet_participation(
         run.font.color.rgb = _DARK
 
     # scenario sub-bar
-    scen_bar_y = Y_BOT + 1.60
+    scen_bar_y = _y_bot + 1.60
     _bar(slide, _RX, scen_bar_y, _RW, 0.20,
          "TABLA DE EJEMPLO DE RENDIMIENTOS", PRI, size=8)
 
@@ -1451,11 +1464,21 @@ def _chart_5yr_hist(unds: list, fecha_inicio, barrier_pct: float = 75.0) -> Byte
             closes.columns = yf_tickers[:1]
         closes.index = pd.to_datetime(closes.index).tz_localize(None)
         closes.columns = unds[:len(closes.columns)]
-        pre = closes[closes.index.date <= inicio]
-        if pre.empty:
-            pre = closes.iloc[:1]
-        init_vals = pre.iloc[-1]
-        norm = closes / init_vals * 100
+
+        # Normalize every underlying to 100 at the first available data point
+        # (left edge of the chart) so all lines visually start at 100%.
+        norm = closes / closes.iloc[0] * 100
+
+        # Compute where the capital barrier falls in normalized coordinates:
+        # barrier is barrier_pct% of the INCEPTION price.  In this chart
+        # (normalized to 5-yr start = 100) the barrier level equals
+        # worst-of normalized value at inception × barrier_pct / 100.
+        pre_inc = norm[norm.index.date <= inicio]
+        if not pre_inc.empty:
+            worst_at_inc = float(pre_inc.iloc[-1].min())
+            barrier_in_chart = worst_at_inc * barrier_pct / 100
+        else:
+            barrier_in_chart = None
 
         fig, ax = plt.subplots(figsize=(4.2, 2.8))
         fig.patch.set_facecolor("white")
@@ -1464,8 +1487,12 @@ def _chart_5yr_hist(unds: list, fecha_inicio, barrier_pct: float = 75.0) -> Byte
             ax.plot(norm.index, norm[col], color=_LINE_COLORS[i % 4],
                     linewidth=1.1, label=col)
         ax.axhline(100, color="#6B7280", linewidth=0.9, linestyle="--", alpha=0.8)
-        ax.axhline(barrier_pct, color="#DC2626", linewidth=0.9, linestyle="--",
-                   alpha=0.7, label=f"Barrera ({barrier_pct:.0f}%)")
+        if barrier_in_chart is not None:
+            ax.axhline(barrier_in_chart, color="#DC2626", linewidth=0.9, linestyle="--",
+                       alpha=0.7, label=f"Barrera ({barrier_pct:.0f}%)")
+        # Mark inception date with a dotted vertical line
+        ax.axvline(pd.Timestamp(inicio), color="#2563EB", linewidth=0.8,
+                   linestyle=":", alpha=0.55)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
         ax.xaxis.set_major_locator(mdates.YearLocator())
@@ -1560,12 +1587,19 @@ def _build_capital_return_tbl(slide, x, y, w, unds: list,
     return total_h
 
 
-def _build_cronograma_tbl(slide, x, y, w, ac_dates: list, pri: RGBColor) -> float:
+def _build_cronograma_tbl(slide, x, y, w, ac_dates: list, pri: RGBColor,
+                           available_h: float = None) -> float:
     """Full observation + payment schedule table."""
     if not ac_dates:
         return 0.0
     n = len(ac_dates)
-    row_h   = 0.18
+    row_h = 0.18
+    # If available space is constrained, shrink row height so the table fits on the page
+    if available_h is not None:
+        max_h = max(0.30, available_h - 0.04)
+        needed = (n + 1) * row_h
+        if needed > max_h:
+            row_h = max(0.14, max_h / (n + 1))
     total_h = (n + 1) * row_h
 
     tbl = slide.shapes.add_table(
@@ -1671,7 +1705,8 @@ def generate_factsheet_ejecutado_dist(
     buffer_str  = f"{buffer_pct:.0f}%"
 
     und_long = [_UND_LABELS.get(u, u) for u in unds]
-    sub_desc = ("Worst of: " + ", ".join(und_long)) if len(unds) > 1 else (und_long[0] if und_long else "—")
+    # Use short ticker symbols in the table to prevent text wrapping in the right column
+    sub_desc = ("Worst of: " + " / ".join(unds)) if len(unds) > 1 else (und_long[0] if und_long else "—")
 
     if strikes:
         items = [f"{u}: {v:,.2f}" for u, v in strikes.items() if v]
@@ -1762,9 +1797,11 @@ def generate_factsheet_ejecutado_dist(
         f"contingente de {cupon_str} por año, sujeto al comportamiento de "
         f"un conjunto de activos de {asset_class.lower()}."
     ]
-    _multiline_txt(slide, _ML, y_left, _LW, 0.65, narrative,
+    _n_cpl = max(10, int(_LW * 13))
+    _nh = max(0.60, (max(1, -(-len(narrative[0]) // _n_cpl)) * 0.20) + 0.10)
+    _multiline_txt(slide, _ML, y_left, _LW, _nh, narrative,
                    size=9, align=PP_ALIGN.JUSTIFY)
-    y_left += 0.68
+    y_left += _nh + 0.06
 
     if strikes:
         n_pr = len(strikes)
@@ -1814,9 +1851,11 @@ def generate_factsheet_ejecutado_dist(
         f"nivel inicial, se devuelve el 100% del capital. De lo contrario:\n"
         f"DC = 100% + {factor:.2f} × ({buffer_str} + Worst of)"
     )
-    _multiline_txt(slide, _RX, y_right, _RW, 0.62,
+    _f_cpl = max(10, int(_RW * 13))
+    _fh = max(0.55, sum(max(1, -(-len(seg.strip()) // _f_cpl)) for seg in formula.split("\n")) * 0.20 + 0.10)
+    _multiline_txt(slide, _RX, y_right, _RW, _fh,
                    [formula], size=8, align=PP_ALIGN.JUSTIFY)
-    y_right += 0.66
+    y_right += _fh + 0.06
 
     cap_h = _build_capital_return_tbl(slide, _RX, y_right, _RW, unds, barrera_cap_pct, PRI)
     y_right += cap_h
@@ -1828,23 +1867,31 @@ def generate_factsheet_ejecutado_dist(
     _bar(slide, _RX, y, _RW, H_BAR, "CUPÓN", PRI, size=9)
     y += H_BAR + 0.04
 
-    _multiline_txt(slide, _ML, y, _LW, 0.62,
-        [f"Si en alguna fecha de observación de autocall el rendimiento de todos los "
-         f"subyacentes es positivo respecto a su nivel inicial, la estructura termina "
-         f"anticipadamente y el inversionista recibe el 100% del capital más el cupón del período."],
-        size=9, align=PP_ALIGN.JUSTIFY)
-    _multiline_txt(slide, _RX, y, _RW, 0.62,
-        [f"El producto acumula un cupón diario por cada día útil que los subyacentes se "
-         f"encuentren por encima del {barrera_str} de sus niveles iniciales. "
-         f"La observación del cupón es diaria y los pagos son {obs_cupon.lower()}s."],
-        size=9, align=PP_ALIGN.JUSTIFY)
-    y += 0.66
+    _ac_txt = (
+        f"Si en alguna fecha de observación de autocall el rendimiento de todos los "
+        f"subyacentes es positivo respecto a su nivel inicial, la estructura termina "
+        f"anticipadamente y el inversionista recibe el 100% del capital más el cupón del período."
+    )
+    _cu_txt = (
+        f"El producto acumula un cupón diario por cada día útil que los subyacentes se "
+        f"encuentren por encima del {barrera_str} de sus niveles iniciales. "
+        f"La observación del cupón es diaria y los pagos son {obs_cupon.lower()}s."
+    )
+    _ac_cpl = max(10, int(_LW * 13))
+    _cu_cpl = max(10, int(_RW * 13))
+    _ac_h = max(0.65, (-(-len(_ac_txt) // _ac_cpl)) * 0.20 + 0.12)
+    _cu_h = max(0.65, (-(-len(_cu_txt) // _cu_cpl)) * 0.20 + 0.12)
+    _sec_h = max(_ac_h, _cu_h)
+    _multiline_txt(slide, _ML, y, _LW, _sec_h, [_ac_txt], size=9, align=PP_ALIGN.JUSTIFY)
+    _multiline_txt(slide, _RX, y, _RW, _sec_h, [_cu_txt], size=9, align=PP_ALIGN.JUSTIFY)
+    y += _sec_h + 0.08
 
     # 9. CRONOGRAMA
     if ac_dates:
         _bar(slide, _ML, y, _CW, H_BAR, "CRONOGRAMA", PRI, size=9)
         y += H_BAR + 0.04
-        sched_h = _build_cronograma_tbl(slide, _ML, y, _CW, ac_dates, PRI)
+        _avail = _H - y - 0.45  # leave room for disclaimer
+        sched_h = _build_cronograma_tbl(slide, _ML, y, _CW, ac_dates, PRI, available_h=_avail)
         y += sched_h + 0.06
 
     # 10. Disclaimer
