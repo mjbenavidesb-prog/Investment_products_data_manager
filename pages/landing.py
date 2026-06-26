@@ -668,8 +668,8 @@ section[data-testid="stMain"] > div > div > div[data-testid="stVerticalBlock"]
 </div>
 """, unsafe_allow_html=True)
 
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
 
         col_a, col_b = st.columns([1, 1])
         with col_a:
