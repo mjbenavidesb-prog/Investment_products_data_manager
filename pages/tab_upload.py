@@ -124,16 +124,21 @@ def _fetch_missing_strikes(data: dict) -> tuple[dict, list[str]]:
 
         yf_tick = _BBG_TO_YF.get(str(bbg).upper(), bbg)
         try:
+            import pandas as pd
             end_dt = strike_dt + timedelta(days=7)
             hist = yf.download(
                 yf_tick,
                 start=strike_dt.isoformat(),
                 end=end_dt.isoformat(),
                 progress=False,
-                auto_adjust=True,
+                auto_adjust=False,
             )
             if not hist.empty:
-                price = float(hist["Close"].iloc[0])
+                if isinstance(hist.columns, pd.MultiIndex):
+                    close_series = hist["Close"].iloc[:, 0]
+                else:
+                    close_series = hist["Close"]
+                price = float(close_series.iloc[0])
                 data[f"strike_{i}"] = round(price, 4)
                 fetched.append(f"{bbg}: {price:,.4f}")
         except Exception:
