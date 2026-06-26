@@ -8,6 +8,13 @@ from datetime import date
 import pandas as pd
 
 try:
+    import yfinance as yf
+    from backend.market_data import resolve_ticker
+    _YF_OK = True
+except ImportError:
+    _YF_OK = False
+
+try:
     from openpyxl import Workbook
     from openpyxl.styles import (
         PatternFill, Font, Alignment, Border, Side, numbers as xl_numbers
@@ -73,6 +80,38 @@ def _usd(v):
         return 0
 
 
+def _fetch_current_spots(rows: list[dict]) -> dict[str, float]:
+    """Batch-fetch latest closing prices for all underlyings across all rows."""
+    if not _YF_OK:
+        return {}
+    bbg_to_yf: dict[str, str] = {}
+    for r in rows:
+        for i in range(1, 5):
+            bbg = r.get(f"underlying_{i}")
+            if bbg and str(bbg).strip() not in ("", "nan", "None"):
+                bbg = str(bbg).strip()
+                yft = resolve_ticker(bbg)
+                if yft:
+                    bbg_to_yf[bbg] = yft
+    if not bbg_to_yf:
+        return {}
+    try:
+        yf_tickers = list(bbg_to_yf.values())
+        raw = yf.download(yf_tickers, period="5d", progress=False, auto_adjust=False)
+        if raw.empty:
+            return {}
+        closes = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw[["Close"]].rename(columns={"Close": yf_tickers[0]})
+        result: dict[str, float] = {}
+        for bbg, yft in bbg_to_yf.items():
+            if yft in closes.columns:
+                s = closes[yft].dropna()
+                if not s.empty:
+                    result[bbg] = float(s.iloc[-1])
+        return result
+    except Exception:
+        return {}
+
+
 def _build_strikes(row: dict) -> str:
     parts = []
     for i in range(1, 5):
@@ -96,9 +135,11 @@ def _build_rendimiento(row: dict) -> tuple[str, str]:
         if not u:
             continue
         try:
+            if sp is None or str(sp).strip() in ("", "nan", "None", "NaN"):
+                continue
             s_f  = float(s)
             sp_f = float(sp)
-            if s_f == 0:
+            if s_f == 0 or sp_f != sp_f:  # skip zero strike or NaN spot
                 continue
             ret = (sp_f / s_f - 1) * 100
             parts.append(f"{u}: {ret:+.2f}%")
@@ -159,7 +200,7 @@ _GROUP_COL = {
 _COLS = [
     ("Nombre del producto",  "nombre_producto"),
     ("Monto en USD",         "_monto"),
-    ("Tipo",                 "tipo"),
+    ("Tipo",                 "_tipo"),
     ("Moneda",               "moneda"),
     ("Contraparte",          "contraparte"),
     ("ISIN",                 "isin"),
@@ -196,7 +237,18 @@ def generate_excel_report(
 
     # ── Precompute derived columns ─────────────────────────────────────────────
     rows = df.to_dict("records")
+
+    # Batch-fetch current prices once for all products
+    current_spots = _fetch_current_spots(rows)
     for r in rows:
+        for i in range(1, 5):
+            bbg = r.get(f"underlying_{i}")
+            if bbg and str(bbg).strip() not in ("", "nan", "None"):
+                if not r.get(f"spot_{i}") or str(r.get(f"spot_{i}")).strip() in ("", "nan", "None"):
+                    r[f"spot_{i}"] = current_spots.get(str(bbg).strip())
+
+    for r in rows:
+        r["_tipo"]         = _safe(r.get("tipo_estructura") or r.get("tipo"), "—")
         r["_monto"]        = _usd(r.get("monto_total"))
         r["_cupon"]        = _pct(r.get("cupon_contingente") or r.get("cupon_fijo"))
         bk = r.get("barrera_capital")
