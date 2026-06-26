@@ -33,6 +33,7 @@ DEFAULTS = {
     "business_days_payment": 3,
     "custom_fields": [],
     "right_panel_fields": [
+        {"key": "asset_class",       "label": "Asset Class",              "config_key": "asset_classes", "type": "select",  "enabled": True},
         {"key": "vehiculo",          "label": "Vehicle",                  "config_key": "vehicles",      "type": "select",  "enabled": True},
         {"key": "entidad",           "label": "Entity",                   "config_key": "entities",      "type": "select",  "enabled": True},
         {"key": "jurisdiccion",      "label": "Jurisdiction",             "config_key": "jurisdictions", "type": "select",  "enabled": True},

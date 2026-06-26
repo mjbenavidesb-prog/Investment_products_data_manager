@@ -147,33 +147,21 @@ def render():
             with id1:
                 isin = st.text_input("ISIN", value=ex.get("isin") or ex.get("cusip") or "")
             with id2:
-                tipo_opts = ["Note", "Certificate", "Warrant", "Bond"]
-                tipo_val  = ex.get("tipo", "Note")
-                tipo = st.selectbox("Type", tipo_opts,
-                    index=tipo_opts.index(tipo_val) if tipo_val in tipo_opts else 0)
+                _cat_opts = ["Distribution", "Participation"]
+                _cat_map  = {
+                    "Distribucion": "Distribution", "Distribución": "Distribution",
+                    "Participacion": "Participation", "Participación": "Participation",
+                    "Distribution": "Distribution", "Participation": "Participation",
+                }
+                _cat_val = _cat_map.get(ex.get("tipo_estructura", ""), _cat_opts[0])
+                tipo_estructura = st.selectbox("Category", _cat_opts,
+                    index=_cat_opts.index(_cat_val),
+                    help="AI-extracted — Distribution (periodic coupons) or Participation (performance at maturity)")
             with id3:
                 moneda_opts = ["USD", "EUR", "GBP", "PEN", "CLP", "COP"]
                 mon_val = ex.get("moneda", "USD")
                 moneda = st.selectbox("Currency", moneda_opts,
                     index=moneda_opts.index(mon_val) if mon_val in moneda_opts else 0)
-
-            # Category (AI-extracted)
-            cat1, cat2 = st.columns(2)
-            with cat1:
-                struct_opts = ["Distribución", "Participación", "Híbrido"]
-                struct_val  = ex.get("tipo_estructura", "")
-                _struct_map = {"Distribucion": "Distribución", "Participacion": "Participación",
-                               "Hibrido": "Híbrido", "Distribución": "Distribución",
-                               "Participación": "Participación", "Híbrido": "Híbrido"}
-                struct_val = _struct_map.get(struct_val, struct_opts[0])
-                tipo_estructura = st.selectbox("Category",  struct_opts,
-                    index=struct_opts.index(struct_val) if struct_val in struct_opts else 0,
-                    help="AI-extracted — Distribution (coupons) or Participation (performance at maturity)")
-            with cat2:
-                estrategia_opts = ["Opportunity", "Capital Protegido"]
-                est_val = ex.get("estrategia", estrategia_opts[0])
-                estrategia = st.selectbox("Strategy", estrategia_opts,
-                    index=estrategia_opts.index(est_val) if est_val in estrategia_opts else 0)
 
             contraparte = st.text_input("Guarantor / Counterparty",
                 value=ex.get("contraparte") or ex.get("garante") or "")
@@ -328,22 +316,16 @@ def render():
                 index=_STATUS_OPTS.index(_auto_st) if _auto_st in _STATUS_OPTS else 0,
                 help="Auto-calculated from trade/maturity dates — override if needed.")
 
-            # Asset Class (manual)
-            ac_opts = cfg.get("asset_classes") or cfg.DEFAULTS["asset_classes"]
-            ac_val  = ex.get("asset_class", ac_opts[0])
-            asset_class = st.selectbox("Asset Class", ac_opts,
-                index=ac_opts.index(ac_val) if ac_val in ac_opts else 0)
-
             # ── Configurable standard fields ──────────────────────────────────
-            _rpf_defaults = cfg.DEFAULTS["right_panel_fields"]
-            _rpf = cfg.get("right_panel_fields") or _rpf_defaults
+            _rpf = cfg.get("right_panel_fields") or cfg.DEFAULTS["right_panel_fields"]
             _rpf_map = {f["key"]: f for f in _rpf}
 
-            vehiculo = None
-            entidad = None
-            jurisdiccion = None
-            perfil = None
-            tipo_cliente = None
+            asset_class       = None
+            vehiculo          = None
+            entidad           = None
+            jurisdiccion      = None
+            perfil            = None
+            tipo_cliente      = None
             dias_habiles_pago = int(cfg.get("business_days_payment") or 3)
 
             def _rpf_enabled(key):
@@ -351,6 +333,12 @@ def render():
 
             def _rpf_label(key, default):
                 return _rpf_map.get(key, {}).get("label", default)
+
+            if _rpf_enabled("asset_class"):
+                ac_opts = cfg.get("asset_classes") or cfg.DEFAULTS["asset_classes"]
+                ac_val  = ex.get("asset_class", ac_opts[0] if ac_opts else "")
+                asset_class = st.selectbox(_rpf_label("asset_class", "Asset Class"), ac_opts,
+                    index=ac_opts.index(ac_val) if ac_val in ac_opts else 0)
 
             if _rpf_enabled("vehiculo"):
                 vehicle_opts = cfg.get("vehicles") or cfg.DEFAULTS["vehicles"]
@@ -366,7 +354,7 @@ def render():
 
             if _rpf_enabled("perfil"):
                 profile_opts = cfg.get("profiles") or cfg.DEFAULTS["profiles"]
-                p_val = ex.get("perfil", profile_opts[0])
+                p_val = ex.get("perfil", profile_opts[0] if profile_opts else "")
                 perfil = st.selectbox(_rpf_label("perfil", "Risk Profile"), profile_opts,
                     index=profile_opts.index(p_val) if p_val in profile_opts else 0)
 
@@ -455,9 +443,7 @@ def render():
         record = {
             "nombre_producto":    nombre_producto.strip(),
             "isin":               isin or None,
-            "tipo":               tipo,
             "tipo_estructura":    tipo_estructura,
-            "estrategia":         estrategia,
             "status":             status,
             "contraparte":        contraparte or None,
             "contraparte_derivado": None,
