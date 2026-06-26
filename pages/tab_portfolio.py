@@ -258,7 +258,7 @@ def render():
 
     display_cols = {
         "nombre_producto": "Product Name",
-        "tipo": "Type",
+        "tipo_estructura": "Category",
         "status": "Status",
         "vehiculo": "Vehicle",
         "monto_total": "Total AUM",
