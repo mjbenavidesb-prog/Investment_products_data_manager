@@ -423,6 +423,7 @@ def render():
                         verified_autocall_date=ac_date_str if ftype == "Autocall" else None,
                         logo_bytes=logo_bytes,
                         disclaimer=disclaimer.strip() or None,
+                        line_colors=cfg.color_sequence(),
                     )
                 st.success(f"Factsheet **{ftype}** generado correctamente.")
 

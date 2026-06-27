@@ -223,7 +223,8 @@ def _embed(slide, buf: BytesIO, x, y, w, h):
 def _chart_all(df: pd.DataFrame,
                barrier_pct: float | None = None,
                cupon_annual: float | None = None,
-               accrual_color: str = "#DC2626") -> BytesIO:
+               accrual_color: str = "#DC2626",
+               line_colors: list | None = None) -> BytesIO:
     """
     All underlyings, normalized 100 = inception.
     If barrier_pct + cupon_annual are provided, overlays the Range Accrual
@@ -234,8 +235,9 @@ def _chart_all(df: pd.DataFrame,
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
+    _colors = line_colors or _LINE_COLORS
     for i, col in enumerate(df.columns):
-        ax.plot(df.index, df[col], color=_LINE_COLORS[i % 4],
+        ax.plot(df.index, df[col], color=_colors[i % len(_colors)],
                 linewidth=1.2, label=col)
 
     # ── Range Accrual coupon accumulation overlay ──────────────────────────────
@@ -487,7 +489,7 @@ def _build_coupon_table(slide, x, y, w, coupon_rows, total_str, pri: RGBColor):
 
     # Total row
     total_ri = n_data + 1
-    for ci, val in enumerate(["Total pagado", "", total_str]):
+    for ci, val in enumerate(["Total", "", total_str]):
         _cell_fmt(tbl.cell(total_ri, ci), val, bold=True,
                   color=_WHITE, align=PP_ALIGN.CENTER, fill=pri)
 
@@ -1124,7 +1126,8 @@ def generate_factsheet_pdf(product: dict, event_type: str, company_name: str,
                            primary: str, secondary: str = "#DC2626",
                            verified_autocall_date=None,
                            logo_bytes: bytes | None = None,
-                           disclaimer: str | None = None) -> bytes:
+                           disclaimer: str | None = None,
+                           line_colors: list | None = None) -> bytes:
     """
     Returns PPTX bytes (A4 portrait).
     primary    → header bar, sub-bars, table headers
@@ -1382,40 +1385,49 @@ def generate_factsheet_pdf(product: dict, event_type: str, company_name: str,
     _bar(slide, _RX, y0, _RW, hh, "DESEMPEÑO DEL PEOR SUBYACENTE", PRI, size=9)
 
     # 6. Main two-column area
-    y0, hh = _YP["main"]
-    _build_caract_table(slide, _ML, y0, _LW, caract_rows, PRI)
+    y0_main, hh_main = _YP["main"]
+    _caract_h = _build_caract_table(slide, _ML, y0_main, _LW, caract_rows, PRI)
     if not perf_df.empty:
-        _embed(slide, _chart_all(perf_df), _RX, y0, _RW, hh)
+        _embed(slide, _chart_all(perf_df, line_colors=line_colors),
+               _RX, y0_main, _RW, hh_main)
+
+    # Dynamic Y: push sections below down if caract table overflows
+    _avail_main = _YP["sumtbl"][0] - y0_main - 0.08
+    _delta = max(0.0, _caract_h - _avail_main)
 
     # 7. Summary table
-    y0, hh = _YP["sumtbl"]
-    _build_summary_table(slide, _ML, y0, _CW, hh,
+    _y_sumtbl = _YP["sumtbl"][0] + _delta
+    _build_summary_table(slide, _ML, _y_sumtbl, _CW, _YP["sumtbl"][1],
                          name, fecha_inicio, fecha_vencto, actual_ac,
                          rendimientos, worst_u, worst_v, rend_producto,
                          last_pmt, PRI)
 
-    # 8. EVOLUCIÓN bar (secondary color — main section bar)
-    y0, hh = _YP["evol_bar"]
-    _bar(slide, _ML, y0, _CW, hh, "EVOLUCIÓN DEL PRODUCTO", SEC, size=9)
+    # 8. EVOLUCIÓN bar
+    _y_evolbar = _YP["evol_bar"][0] + _delta
+    _bar(slide, _ML, _y_evolbar, _CW, _YP["evol_bar"][1],
+         "EVOLUCIÓN DEL PRODUCTO", SEC, size=9)
 
     # 9. Sub-header
-    y0, hh = _YP["subhdr"]
-    _txt(slide, _ML, y0, _CW * 0.64, hh, subhdr_und, size=9)
-    _txt(slide, _ML + _CW * 0.66, y0,        _CW * 0.34, hh * 0.52,
+    _y_subhdr = _YP["subhdr"][0] + _delta
+    _hh_subhdr = _YP["subhdr"][1]
+    _txt(slide, _ML, _y_subhdr, _CW * 0.64, _hh_subhdr, subhdr_und, size=9)
+    _txt(slide, _ML + _CW * 0.66, _y_subhdr, _CW * 0.34, _hh_subhdr * 0.52,
          f"Rendimiento producto*: {rend_p_str}",
          size=9, bold=True, color=PRI, align=PP_ALIGN.RIGHT)
-    _txt(slide, _ML + _CW * 0.66, y0 + hh * 0.52, _CW * 0.34, hh * 0.48,
+    _txt(slide, _ML + _CW * 0.66, _y_subhdr + _hh_subhdr * 0.52,
+         _CW * 0.34, _hh_subhdr * 0.48,
          f"Rendimiento subyacente: {worst_r_str}",
          size=9, color=_DARK, align=PP_ALIGN.RIGHT)
 
     # 10. Bottom two-column
-    y0, hh = _YP["bottom"]
+    _y_bot = _YP["bottom"][0] + _delta
+    _h_bot = max(1.5, _YP["footnote"][0] - _y_bot - 0.08)
     btm_lw = 3.00
     btm_rx = _ML + btm_lw + 0.15
     btm_rw = _CW - btm_lw - 0.15
 
     if coupon_rows:
-        _build_coupon_table(slide, _ML, y0, btm_lw, coupon_rows, total_coupon_str, PRI)
+        _build_coupon_table(slide, _ML, _y_bot, btm_lw, coupon_rows, total_coupon_str, PRI)
 
     if not worst_series.empty:
         _embed(slide, _chart_worst(
@@ -1423,7 +1435,7 @@ def generate_factsheet_pdf(product: dict, event_type: str, company_name: str,
             barrier_pct=barrier_cupon if cupon_annual else None,
             cupon_annual=cupon_annual if cupon_annual else None,
             accrual_color=secondary,
-        ), btm_rx, y0, btm_rw, hh)
+        ), btm_rx, _y_bot, btm_rw, _h_bot)
 
     # 11. Footnote / disclaimer
     y0, hh = _YP["footnote"]
