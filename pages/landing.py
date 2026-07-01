@@ -221,7 +221,7 @@ html, body, [class*="css"], .stApp {{
 
 /* ── Footer CTA ──────────────────────────────────────────────────────── */
 .lp-cta {{
-    padding: 72px 56px;
+    padding: 20px 56px;
     border-top: 1px solid rgba(255,255,255,0.05);
     text-align: center;
 }}
@@ -673,9 +673,9 @@ section[data-testid="stMain"] > div > div > div[data-testid="stVerticalBlock"]
 
     with left:
         st.markdown(f"""
-<div style="margin-bottom: 20px;">
+<div style="margin-bottom: 40px;">
     <div class="login-logo">Structure<span>AI</span></div>
-    <div class="login-title" style="margin-top: 20px;">Sign in to your account</div>
+    <div class="login-title" style="margin-top: 40px;">Sign in to your account</div>
     <div class="login-sub">Enter your credentials to access the platform.</div>
     <div class="login-demo-hint">
         Demo &mdash; Username: <code>admin</code> &nbsp;/&nbsp; Password: <code>demo2024</code>
